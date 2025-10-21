@@ -1,0 +1,17 @@
+# GPS 관련
+gpsd-py3==0.3.0
+pyserial==3.5
+
+# 온도 센서
+# MCP9600 I2C 열전대 증폭기 (냉장고 온도 측정용)
+adafruit-circuitpython-mcp9600
+adafruit-blinka  # Raspberry Pi I2C/SPI 지원
+
+# 서버 전송
+requests==2.31.0  # HTTP 요청용
+mysql-connector-python==8.0.33  # MySQL 연결용
+
+# 다른 온도 센서 (선택 사항)
+# adafruit-circuitpython-dht  # DHT22 센서용
+# DS18B20은 추가 패키지 불필요 (표준 파일 시스템 사용)
+
