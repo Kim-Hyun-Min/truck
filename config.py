@@ -45,8 +45,8 @@ MQTT_RETAIN = False
 VEHICLE_ID = "V001"  # 차량 고유 ID
 
 # 전송 설정
-SEND_INTERVAL = 1  # 서버 전송 간격 (초, 1초마다 전송)
-BATCH_SIZE = 10  # 한 번에 전송할 데이터 개수 (최근 10개)
+SEND_INTERVAL = 0.1  # 서버 전송 간격 (초), 실시간 전송(초당 10회) 목표
+BATCH_SIZE = 1  # 한 번에 전송할 데이터 개수 (가장 최신 1개)
 RETRY_ATTEMPTS = 3  # 전송 실패 시 재시도 횟수
 RETRY_DELAY = 1  # 재시도 간격 (초)
 
