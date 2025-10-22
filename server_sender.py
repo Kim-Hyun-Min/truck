@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 """
 서버로 GPS + 온도 데이터를 전송하는 클래스
-MySQL 데이터베이스 또는 HTTP API를 통한 데이터 전송
+MQTT 브로커로만 전송 (불필요한 MySQL/API 경로 제거)
 """
 
-import requests
 import json
 import time
 import logging
 import threading
 from datetime import datetime, timedelta
-from config import (SERVER_HOST, SERVER_PORT, SERVER_DATABASE, SERVER_USERNAME, SERVER_PASSWORD,
-                   SERVER_API_URL, SERVER_API_KEY, VEHICLE_ID, SEND_INTERVAL, BATCH_SIZE,
-                   RETRY_ATTEMPTS, RETRY_DELAY, MQTT_CLIENT_ID, MQTT_QOS, MQTT_RETAIN)
+from config import (
+    VEHICLE_ID,
+    SEND_INTERVAL,
+    BATCH_SIZE,
+    MQTT_CLIENT_ID,
+    MQTT_QOS,
+    MQTT_RETAIN,
+)
 
 # MQTT 브로커/토픽 고정 설정 (요청사항 반영)
-BROKER = "192.168.0.102"  # 이 PC IP
+BROKER = "192.168.0.102"  # 로컬 PC IP
 PORT   = 1883
 TOPIC  = "truck/gps_temp"
 
@@ -30,8 +34,6 @@ class ServerSender:
         self.vehicle_id = VEHICLE_ID
         self.send_interval = SEND_INTERVAL
         self.batch_size = BATCH_SIZE
-        self.retry_attempts = RETRY_ATTEMPTS
-        self.retry_delay = RETRY_DELAY
 
         # MQTT 설정 (요청값으로 고정)
         self.mqtt_broker_host = BROKER
@@ -101,11 +103,15 @@ class ServerSender:
                     self._send_batch()
                     self.last_send_time = current_time
 
-                time.sleep(10)  # 10초마다 체크
+                # 다음 전송까지 남은 시간만큼 짧게 대기하여 초 단위 전송 보장
+                # 최소 10ms, 최대 200ms 간격으로 폴링하여 1초 주기를 정밀하게 유지
+                remaining = self.send_interval - (time.time() - (self.last_send_time or 0))
+                sleep_for = max(0.01, min(0.2, remaining))
+                time.sleep(sleep_for)
 
             except Exception as e:
                 logger.error(f"전송 루프 오류: {e}")
-                time.sleep(30)  # 오류 발생 시 30초 대기
+                time.sleep(1)  # 오류 발생 시 짧게 대기 후 재시도
 
     def _send_batch(self):
         """배치 데이터 전송"""
@@ -116,12 +122,10 @@ class ServerSender:
                 logger.debug("전송할 새 데이터가 없습니다")
                 return
 
-            logger.info(f"{len(data_to_send)}개의 데이터를 서버로 전송합니다")
+            logger.info(f"{len(data_to_send)}개의 데이터를 서버로 전송합니다 (MQTT)")
 
-            # 서버로 전송 (MQTT 우선 → MySQL → API)
-            success = (self._send_to_mqtt(data_to_send) or
-                       self._send_to_mysql(data_to_send) or
-                       self._send_to_api(data_to_send))
+            # 서버로 전송 (MQTT 전용)
+            success = self._send_to_mqtt(data_to_send)
 
             if success:
                 # 성공 시 전송 완료 표시
@@ -259,7 +263,7 @@ class ServerSender:
         return {
             'id': row[0],          # id 필드 (인덱스 0) - 전송 완료 표시에 필요
             'vehicle_id': row[1],  # vehicle_id 필드 (인덱스 1)
-            'timestamp': datetime.fromtimestamp(row[2]).isoformat() + 'Z',  # timestamp 필드 (인덱스 2)
+            'timestamp': datetime.fromtimestamp(row[2]).isoformat(),  # timestamp 필드 (인덱스 2)
             'latitude': row[4],    # latitude 필드 (인덱스 4)
             'longitude': row[5],   # longitude 필드 (인덱스 5)
             'altitude': row[6],    # altitude 필드 (인덱스 6)
@@ -279,117 +283,7 @@ class ServerSender:
                 return status
         return 'normal'
 
-    def _send_to_mysql(self, data):
-        """MySQL 데이터베이스에 직접 저장"""
-        try:
-            import mysql.connector
-
-            # MySQL 연결
-            conn = mysql.connector.connect(
-                host=SERVER_HOST,
-                port=SERVER_PORT,
-                database=SERVER_DATABASE,
-                user=SERVER_USERNAME,
-                password=SERVER_PASSWORD
-            )
-
-            cursor = conn.cursor()
-
-            # GPS + 온도 데이터 저장 (사용자 서버 구조에 맞춤)
-            insert_query = """
-                INSERT INTO gps_temperature_data
-                (vehicle_id, timestamp, latitude, longitude, altitude, speed, heading, temperature, status)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """
-
-            for item in data:
-                cursor.execute(insert_query, (
-                    item['vehicle_id'],
-                    item['timestamp'].replace('Z', ''),  # Z 제거
-                    item.get('latitude'),
-                    item.get('longitude'),
-                    item.get('altitude'),
-                    item.get('speed'),
-                    item.get('heading'),
-                    item['temperature'],
-                    item['status']
-                ))
-
-            conn.commit()
-            cursor.close()
-            conn.close()
-
-            logger.info(f"MySQL 데이터베이스에 {len(data)}개 데이터 저장 완료")
-            return True
-
-        except ImportError:
-            logger.warning("mysql-connector-python이 설치되지 않았습니다")
-            return False
-        except mysql.connector.Error as e:
-            if e.errno == 2003:  # Can't connect to MySQL server
-                logger.error(f"MySQL 서버 연결 실패: {e}")
-                logger.info(f"서버 주소: {SERVER_HOST}:{SERVER_PORT}")
-                logger.info("MySQL 서버가 실행 중인지, 네트워크 연결이 정상인지 확인해주세요.")
-            else:
-                logger.error(f"MySQL 오류: {e}")
-            return False
-        except Exception as e:
-            logger.error(f"MySQL 저장 실패: {e}")
-            return False
-
-    def _send_to_api(self, data):
-        """HTTP API로 서버에 데이터 전송"""
-        headers = {
-            'Content-Type': 'application/json',
-            'Authorization': f'Bearer {SERVER_API_KEY}',
-            'User-Agent': 'TruckGPS/1.0'
-        }
-
-        payload = {
-            'vehicle_id': self.vehicle_id,
-            'data': data,
-            'sent_at': datetime.now().isoformat()
-        }
-
-        for attempt in range(self.retry_attempts):
-            try:
-                response = requests.post(
-                    SERVER_API_URL,
-                    json=payload,
-                    headers=headers,
-                    timeout=30
-                )
-
-                if response.status_code == 200:
-                    logger.debug(f"서버 응답: {response.json()}")
-                    return True
-                else:
-                    logger.warning(f"서버 오류 응답: {response.status_code} - {response.text}")
-
-            except requests.exceptions.ConnectionError as e:
-                logger.error(f"API 서버 연결 실패 (시도 {attempt + 1}/{self.retry_attempts}): {e}")
-                logger.info(f"서버 주소: {SERVER_API_URL}")
-                logger.info("네트워크 연결 또는 서버 상태를 확인해주세요.")
-
-                if attempt < self.retry_attempts - 1:
-                    logger.info(f"{self.retry_delay}초 후 재시도...")
-                    time.sleep(self.retry_delay)
-
-            except requests.exceptions.Timeout as e:
-                logger.error(f"API 서버 응답 시간 초과 (시도 {attempt + 1}/{self.retry_attempts}): {e}")
-
-                if attempt < self.retry_attempts - 1:
-                    logger.info(f"{self.retry_delay}초 후 재시도...")
-                    time.sleep(self.retry_delay)
-
-            except requests.exceptions.RequestException as e:
-                logger.warning(f"API 요청 오류 (시도 {attempt + 1}/{self.retry_attempts}): {e}")
-
-                if attempt < self.retry_attempts - 1:
-                    logger.info(f"{self.retry_delay}초 후 재시도...")
-                    time.sleep(self.retry_delay)
-
-        return False
+    # MySQL/API 전송 경로는 제거됨 (MQTT 전용)
 
 
     def _mark_data_as_sent(self, data_ids):
@@ -419,37 +313,7 @@ class ServerSender:
         logger.info("수동 데이터 전송 시작")
         self._send_batch()
 
-    def test_connection(self):
-        """서버 연결 테스트"""
-        logger.info("서버 연결 테스트 중...")
-
-        test_data = [{
-            'id': 999999,
-            'vehicle_id': self.vehicle_id,
-            'timestamp': datetime.now().isoformat() + 'Z',
-            'latitude': 0.0,
-            'longitude': 0.0,
-            'temperature': 5.0,
-            'status': 'normal',
-            'test': True
-        }]
-
-        try:
-            # MySQL 연결 시도
-            mysql_success = self._send_to_mysql(test_data)
-
-            # API 연결 시도
-            api_success = self._send_to_api(test_data)
-
-            if mysql_success or api_success:
-                logger.info("✅ 서버 연결 테스트 성공")
-                return True
-            else:
-                logger.error("❌ 서버 연결 테스트 실패")
-                return False
-        except Exception as e:
-            logger.error(f"연결 테스트 오류: {e}")
-            return False
+    # 연결 테스트(외부 서버) 기능 제거됨
 
 
 def test_server_connection():
@@ -477,5 +341,4 @@ def test_server_connection():
 
 
 if __name__ == "__main__":
-    """단독 실행 시 연결 테스트"""
-    test_server_connection()
+    print("ServerSender는 gps_tracker에 의해 구동됩니다.")
