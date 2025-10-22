@@ -15,16 +15,15 @@
 
 ## 주요 기능
 
-### ✅ 실시간 GPS + 온도 데이터 수집
+### ✅ 실시간 GPS + 온도 데이터 수집/전송
 - **GPS 데이터**: 위도, 경도, 고도, 속도, 방향, 위성 수
 - **온도 데이터**: 실제 센서 또는 시뮬레이터 (백신 운송용 2°C ~ 8°C 범위)
-- **데이터 저장**: 0.1초마다 수집, 1초마다 10개 데이터 배치 저장
+- **데이터 저장/전송**: 0.1초 간격(초당 10회)으로 수집·저장, 저장 직후 MQTT로 즉시 전송(배치 크기 1)
 
-### ✅ 서버 전송 시스템
-- **자동 전송**: 1초마다 최근 10개 데이터를 서버로 전송
-- **중복 방지**: 전송 완료 데이터 추적 시스템
-- **이중 전송**: MySQL 직접 저장 + HTTP API 백업
-- **실시간 모니터링**: 전송 성공/실패 상태 실시간 확인
+### ✅ 서버 전송 시스템 (MQTT 전용)
+- **자동 전송**: 0.1초마다 1개 메시지 발행(QoS 1 권장)
+- **중복 방지**: 로컬 DB에 `sent` 플래그로 전송 완료 상태 저장
+- **모니터링**: 로그로 전송 성공/실패 확인(`MQTT 브로커에 1개 데이터 전송 완료`)
 
 ### ✅ 온도 상태 모니터링 (백신 운송용)
 - **온도 범위**: 2°C ~ 8°C (백신 적정 보관 온도)
@@ -42,7 +41,7 @@
 ### 📁 파일 구조
 
 ```
-truck_gps/                    # 📍 GPS 추적 시스템 (라즈베리파이)
+truck_gps/
 ├── config.py              # 설정 파일 (샘플링율, GPS 포트 등)
 ├── database.py            # SQLite 데이터베이스 관리 클래스
 ├── gps_tracker.py         # 메인 프로그램 (실행 파일)
@@ -50,7 +49,7 @@ truck_gps/                    # 📍 GPS 추적 시스템 (라즈베리파이)
 ├── gps_simulator.py       # GPS 시뮬레이터 (테스트용)
 ├── temperature_reader.py  # 실제 온도 센서 인터페이스
 ├── temperature_simulator.py # 온도 데이터 시뮬레이터
-├── server_sender.py       # 서버 전송 클래스
+├── server_sender.py       # 서버 전송 클래스 (MQTT 전송 전용)
 ├── gpio_device_detector.py # GPIO 장치 감지 도구
 ├── database_migration.py  # 데이터베이스 스키마 업데이트 도구
 ├── view_data.py           # 데이터 조회 및 통계 유틸리티
@@ -58,14 +57,6 @@ truck_gps/                    # 📍 GPS 추적 시스템 (라즈베리파이)
 ├── README.md              # 이 문서
 ├── gps_tracker.log        # 로그 파일 (자동 생성)
 └── truck_gps.db           # SQLite 데이터베이스 (자동 생성)
-
-mqtt_dashboard/               # 🌐 MQTT 서버 및 웹 대시보드 (PC)
-├── mqtt_server.py         # MQTT 브로커 및 웹 서버
-├── templates/             # Flask 템플릿 파일들
-│   └── dashboard.html     # 웹 대시보드 페이지
-├── static/                # 정적 파일들 (CSS, JS, 이미지)
-├── truck_gps_dashboard.db # MQTT 서버용 데이터베이스
-└── requirements.txt       # MQTT 서버 의존성
 ```
 
 ### 🔄 데이터 흐름
@@ -232,7 +223,7 @@ source gps_env/bin/activate
 python gps_tracker.py
 ```
 
-### 🔧 데이터베이스 마이그레이션 (서버 전송 기능 활성화)
+### 🔧 데이터베이스 마이그레이션 (과거 DB 스키마 호환)
 
 기존 데이터베이스에 서버 전송 기능을 위한 새 컬럼을 추가하려면:
 
@@ -1133,37 +1124,25 @@ free -h
 
 ---
 
-## 🌐 서버 전송 시스템
+## 🌐 서버 전송 시스템 (MQTT 전용)
 
-### 📤 자동 데이터 전송
+### 📤 자동 데이터 전송 설정
 
-시스템은 **1초마다 최근 10개 데이터를 서버로 자동 전송**합니다:
+시스템은 **0.1초마다 1개 데이터**를 MQTT 브로커로 자동 전송합니다:
 
 ```python
 # 설정 (config.py)
-SEND_INTERVAL = 1     # 1초마다 전송
-BATCH_SIZE = 10       # 최근 10개 데이터 전송
-RETRY_ATTEMPTS = 3    # 실패시 최대 3번 재시도
-RETRY_DELAY = 1       # 재시도 간격 1초
+SEND_INTERVAL = 0.1   # 0.1초마다 전송(초당 10회)
+BATCH_SIZE   = 1      # 가장 최신 1개 전송
 ```
 
-### 🔄 전송 방식
+브로커/토픽(예시):
 
-#### **1️⃣ MySQL 직접 저장 (주요 방식)**
 ```python
-# 서버 정보 (config.py)
-SERVER_HOST = "192.168.0.3"
-SERVER_PORT = 3306
-SERVER_DATABASE = "vaccine_logistics"
-SERVER_USERNAME = "vaccine"
-SERVER_PASSWORD = "dlsvmfk0331"
-```
-
-#### **2️⃣ HTTP API 백업 (보조 방식)**
-```python
-# API 정보 (config.py)
-SERVER_API_URL = "https://your-server.com/api/gps-data"
-SERVER_API_KEY = "your-api-key"
+# server_sender.py 내부 고정값 예시
+BROKER = "192.168.0.102"  # 로컬 PC IP
+PORT   = 1883
+TOPIC  = "truck/gps_temp"
 ```
 
 ### 🚫 중복 전송 방지
@@ -1182,16 +1161,17 @@ UPDATE gps_data SET sent = TRUE, sent_at = CURRENT_TIMESTAMP
 WHERE id IN (전송한_ID들);
 ```
 
-### 📊 전송 데이터 형식
+### 📊 전송 데이터 형식 (MQTT 페이로드)
 
-#### **HTTP API 전송 구조:**
 ```json
 {
   "vehicle_id": "V001",
+  "timestamp": "2025-10-21T17:55:47.818313",  
   "data": [
     {
+      "id": 123,
       "vehicle_id": "V001",
-      "timestamp": "2024-01-01T00:00:00.000Z",
+      "timestamp": "2025-10-21T17:55:47.718313",
       "latitude": 37.5665,
       "longitude": 126.9780,
       "altitude": 45.2,
@@ -1199,31 +1179,9 @@ WHERE id IN (전송한_ID들);
       "heading": 180.0,
       "temperature": 5.2,
       "status": "normal"
-    },
-    {
-      "vehicle_id": "V001",
-      "timestamp": "2024-01-01T00:00:00.100Z",
-      "latitude": 37.5666,
-      "longitude": 126.9781,
-      "altitude": 45.3,
-      "speed": 60.7,
-      "heading": 180.2,
-      "temperature": 5.1,
-      "status": "normal"
     }
-    // ... 최근 10개 데이터
-  ],
-  "sent_at": "2024-01-01T00:00:01.000Z"
+  ]
 }
-```
-
-#### **MySQL 직접 저장 구조:**
-```sql
-INSERT INTO gps_temperature_data
-(vehicle_id, timestamp, latitude, longitude, altitude, speed, heading, temperature, status)
-VALUES
-('V001', '2024-01-01 00:00:00', 37.5665, 126.9780, 45.2, 60.5, 180.0, 5.2, 'normal'),
-('V001', '2024-01-01 00:00:00', 37.5666, 126.9781, 45.3, 60.7, 180.2, 5.1, 'normal');
 ```
 
 ### 🔧 서버 전송 테스트
@@ -1345,6 +1303,27 @@ conn.close()
 ```
 
 Google Maps에서 `route.kml` 파일을 열어 경로 확인
+
+---
+
+### ⚙️ 타임스탬프(시간대) 표기
+
+- 전송 시각은 로컬 ISO 문자열로 전송(Z(UTC) 표기 제거).
+- UTC로 보낼 경우 `datetime.now(timezone.utc).isoformat()` 사용 후 `+00:00` → `Z`로 치환 가능.
+
+### 🚀 지연 최소화 팁(이론)
+
+- 큐 기반 전송: 수집 즉시 `queue.Queue`로 퍼블리셔 스레드에 전달(배치 최소화).
+- MQTT 최적화: QoS 0/1 선택, 상시 연결 유지(loop_start), 페이로드 최소화.
+- SQLite 최적화: WAL + `synchronous=NORMAL`, 연결 재사용, 비동기 배치.
+- 로깅/CPU: INFO→WARNING로 조절, `time.monotonic()` 기반 타이밍.
+
+### 🛠️ I2C 문제 해결(비활성/버스 홀드)
+
+- I2C 활성화: `/boot/firmware/config.txt` 또는 `raspi-config`에서 `dtparam=i2c_arm=on`.
+- 스캔: `i2cdetect -l`, `i2cdetect -y 1`(주소 표시 확인).
+- SDA/SCL 유휴 HIGH 확인, 상시 LOW면 풀업/배선/버스 홀드 의심.
+- 복구: 센서 파워사이클, SCL 9펄스 언스턱, 저속(10kHz) 시도, 드라이버 재적재.
 
 ---
 
