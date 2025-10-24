@@ -225,6 +225,12 @@ class GPSTracker:
                 # GPS 연결 상태 주기적 확인 (10초마다)
                 if sample_count % 100 == 0:  # 10초마다 체크 (0.1초 * 100 = 10초)
                     self.check_gps_connection()
+                # 30초마다(0.1초*300) 5분 초과 데이터 자동 삭제
+                if sample_count % 300 == 0 and self.db:
+                    try:
+                        self.db.purge_older_than_seconds(300)
+                    except Exception as _:
+                        pass
 
                 # 정확한 시간까지 대기 (0.1초 간격)
                 target_time = start_time + (sample_count * INTERVAL)

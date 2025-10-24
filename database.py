@@ -1,5 +1,6 @@
 import sqlite3
 import logging
+import time
 from datetime import datetime
 from config import DB_PATH
 
@@ -156,6 +157,20 @@ class GPSDatabase:
             return self.cursor.fetchone()[0]
         except sqlite3.Error as e:
             logger.error(f"미전송 GPS+온도 데이터 카운트 조회 실패: {e}")
+            return 0
+
+    def purge_older_than_seconds(self, max_age_seconds: float) -> int:
+        """지정 초보다 오래된 레코드를 삭제하고 삭제된 행 수를 반환합니다."""
+        try:
+            cutoff = time.time() - float(max_age_seconds)
+            self.cursor.execute("DELETE FROM gps_temperature_data WHERE timestamp < ?", (cutoff,))
+            deleted = self.cursor.rowcount if self.cursor.rowcount is not None else 0
+            self.conn.commit()
+            if deleted:
+                logger.info(f"오래된 데이터 정리: {deleted}행 삭제(기준 {int(max_age_seconds)}초)")
+            return deleted
+        except sqlite3.Error as e:
+            logger.error(f"오래된 데이터 정리 실패: {e}")
             return 0
     
     def close(self):
