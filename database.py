@@ -105,7 +105,7 @@ class GPSDatabase:
                 SELECT id, vehicle_id, timestamp, datetime, latitude, longitude, altitude, speed, heading, temperature, status, sent, sent_at, created_at
                 FROM gps_temperature_data
                 WHERE sent = FALSE OR sent IS NULL
-                ORDER BY timestamp ASC
+                ORDER BY timestamp DESC
                 LIMIT ?
             """, (limit,))
             return self.cursor.fetchall()
