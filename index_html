@@ -1,406 +1,334 @@
-<!doctype html>
-<html lang="ko">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Truck GPS Dashboard</title>
-  <style>
-    :root { --bg:#111827; --fg:#e6edf3; --muted:#cbd5e1; --card:#1f2937; --border:#374151; --primary:#4f46e5; --accent:#22c55e; --warn:#f59e0b; --danger:#ef4444; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; color: var(--fg); background: var(--bg); font-size: 17px; }
-    .container { width: clamp(1100px, 98vw, 1600px); margin: 0 auto; }
-    .header { background: radial-gradient(1200px 600px at top left, rgba(255,255,255,0.02), transparent 60%) , var(--card); border:1px solid var(--border); border-radius:12px; padding: 14px 18px; display:flex; justify-content:space-between; align-items:center; margin-bottom: 14px; box-shadow: 0 6px 16px rgba(0,0,0,0.18); }
-    .title { font-size:24px; font-weight:800; letter-spacing: -0.2px; display:flex; align-items:flex-start; line-height: 1; color:#60a5fa; }
-    .title .icon { width: 56px; height: 56px; fill: none; stroke: currentColor; stroke-width: 2; margin-right: 12px; display:block; overflow: visible; stroke-linecap: round; stroke-linejoin: round; }
-    .title-text { display:flex; flex-direction:column; justify-content:space-between; height:56px; }
-    .subtitle { font-size:18px; color: var(--muted); margin-top: 8px; }
-    .status { display:flex; gap:16px; align-items:center; color: var(--muted); font-size:18px; line-height:1; }
-    .status > span { display:flex; align-items:center; gap:6px }
-    .status .ico { width: 26px; height: 26px; opacity: 0.9; display:block }
-    .status .ico.stroke { fill: none; stroke: var(--fg); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-    .hicon { width: 28px; height: 28px; fill: var(--muted); margin-right: 10px; vertical-align: -3px; }
-    .status .ok { color:#22c55e; font-weight:700; }
-    .text-ok { color:#22c55e !important; }
-    .text-warn { color:#f59e0b !important; }
-    .text-danger { color:#ef4444 !important; }
-    .text-blue { color:#60a5fa !important; }
-    .stack { display: grid; grid-template-columns: 1fr; gap: 16px; }
-    .grid2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-    .grid3 { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; }
-    .card { background: radial-gradient(1200px 600px at top left, rgba(255,255,255,0.02), transparent 60%) , var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.18); }
-    h1 { margin: 0 0 16px; font-size: 34px; font-weight: 800; }
-    h2 { margin: 0 0 12px; font-size: 25px; color: var(--muted); font-weight: 700; }
-    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
-    .stat { font-size: 21px; line-height: 1.85; color: var(--muted); letter-spacing: 0.2px; }
-    .value { font-weight: 800; color: var(--fg); font-size: 26px; letter-spacing: -0.1px; }
-    .big { font-size: 57px; font-weight: 900; color: var(--accent); letter-spacing: -0.4px; }
-    .badge { display:inline-block; padding: 5px 12px; border-radius: 999px; font-size: 14px; font-weight: 900; letter-spacing: 0.3px; text-transform: uppercase; }
-    .pill { display:inline-block; padding: 13px 18px; border-radius: 10px; background: rgba(255,255,255,0.06); border:1px solid var(--border); font-weight:900; color: var(--fg); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 28px; }
-    .kvbox { width: 100%; border:1px solid var(--border); background: rgba(255,255,255,0.04); border-radius: 10px; padding: 16px 14px; box-sizing: border-box; min-height: 72px; }
-    .kvbox .kvl { font-size: 16px; color: var(--muted); margin-bottom: 6px; }
-    .kvbox .kvv { font-size: 29px; font-weight: 900; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; font-variant-numeric: tabular-nums; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; overflow-wrap: anywhere; }
-    .muted { color: var(--muted); }
-    .b-normal{ background: rgba(34,197,94,.15); color:#22c55e; }
-    .b-warm{ background: rgba(245,158,11,.15); color:#f59e0b; }
-    .b-critical_hot{ background: rgba(239,68,68,.15); color:#ef4444; }
-    .b-cold{ background: rgba(59,130,246,.15); color:#60a5fa; }
-    .b-critical_cold{ background: rgba(14,165,233,.15); color:#22d3ee; }
-    .b-unknown{ background: rgba(148,163,184,.15); color:#cbd5e1; }
-    .temp-card { transition: background-color .2s ease, border-color .2s ease; display:flex; flex-direction:column; text-align:center; }
-    .temp-danger { background: rgba(239,68,68,.08) !important; border-color: rgba(239,68,68,.22) !important; }
-    .range { display:block; width:100%; box-sizing:border-box; text-align:center; margin-top:auto; padding:10px 0; border-radius:10px; background: rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.18); }
-    .note { margin-top: 8px; font-size: 12px; color: var(--muted); }
-    footer { margin-top: 16px; color: var(--muted); font-size: 12px; }
-    .chart-wrap { position: relative; width: 100%; aspect-ratio: 16 / 4.8; }
-    canvas { width: 100%; height: 100%; display: block; }
-    .footer-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top:12px }
-    .footer-grid .card { text-align: center; }
-    .footer-grid .stat { text-align: center; }
-    .footer-grid .value { text-align: center; }
-    .gps-card { display:flex; flex-direction:column; text-align:center; }
-    .gps-card .grid2 { width: 100%; }
-    #locNote { margin-top: auto !important; }
-    #tempCard { text-align:center; }
-    #locNote { font-size: 24px; font-weight: 800; color:#60a5fa; }
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-       <div>
-         <div class="title">
-           <svg class="icon" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-             <path d="M6 42h32V22a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v20Z"/>
-             <path d="M38 30h11a4 4 0 0 1 2.83 1.17L58 37v5H38V30Z"/>
-             <circle cx="18" cy="48" r="6"/>
-             <circle cx="50" cy="48" r="6"/>
-           </svg>
-           <div class="title-text">
-             백신 수송차량 모니터링
-             <div class="subtitle">Device ID: <span id="deviceId">-</span></div>
-           </div>
-         </div>
-       </div>
-       <div class="status">
-         <span><svg class="ico stroke" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M2 8.5C6.5 4 17.5 4 22 8.5M5 11.5c3-2.5 11-2.5 14 0M9 15.5c1.5-1 4.5-1 6 0M12 19.5h0"/></svg> <span id="conn">확인중...</span></span>
-         <span><svg class="ico stroke" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg> <span id="nowText">-</span></span>
-       </div>
-    </div>
+#!/usr/bin/env python3
+"""
+서버로 GPS + 온도 데이터를 전송하는 클래스
+MQTT 브로커로만 전송 (불필요한 MySQL/API 경로 제거)
+"""
 
-    <div class="stack">
-    <!-- 상단: 실시간 패널 -->
-    <div class="grid3">
-      <div class="card temp-card" id="tempCard">
-        <h2><svg class="hicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 2a2 2 0 0 1 2-2h0a2 2 0 0 1 2 2v8.126A4 4 0 1 1 6 14V2Zm2 0h0v12a2 2 0 1 0 4 0V2a2 2 0 1 0-4 0Z"/></svg> 냉장고 온도</h2>
-        <div class="big" id="tmpBig">--.-°C</div>
-        <div class="stat" style="margin-top:8px"> <span id="sts" class="badge b-unknown">-</span></div>
-        <br/>
-        <div class="range">권장 범위<br/>2°C ~ 8°C</div>
-      </div>
-      <div class="card gps-card">
-        <h2><svg class="hicon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 2a8 8 0 0 0-8 8c0 5 8 12 8 12s8-7 8-12a8 8 0 0 0-8-8Zm0 10a2 2 0 1 1 0-4 2 2 0 0 1 0 4Z"/></svg> 실시간 GPS 위치</h2>
-        <div class="grid2" style="margin-top:8px">
-          <div class="kvbox">
-            <div class="kvl">위도</div>
-            <div class="kvv" id="lat">-</div>
-          </div>
-          <div class="kvbox">
-            <div class="kvl">경도</div>
-            <div class="kvv" id="lon">-</div>
-          </div>
-        </div>
-        <div class="note" id="locNote" style="margin-top:10px; background: rgba(255,255,255,0.06); padding:12px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.18); white-space: pre-line;">현재 위치: 위도/경도 표시\n<span class="muted">업데이트: -</span></div>
-      </div>
-    </div>
+import json
+import time
+import logging
+import threading
+from datetime import datetime, timedelta
+from config import (
+    VEHICLE_ID,
+    SEND_INTERVAL,
+    BATCH_SIZE,
+    MQTT_BROKER_HOST,
+    MQTT_BROKER_PORT,
+    MQTT_TOPIC,
+    MQTT_CLIENT_ID,
+    MQTT_QOS,
+    MQTT_RETAIN,
+    TEMP_RANGES,
+)
 
-    <!-- 하단: 온도 차트 -->
-    <div class="card">
-      <h2>온도 히스토리</h2>
-      <div class="chart-wrap"><canvas id="tempChart"></canvas></div>
-    </div>
-    <div class="footer-grid">
-      <div class="card" style="padding:12px"><div class="stat">현재 온도</div><div class="value" id="footTemp">-</div></div>
-      <div class="card" style="padding:12px"><div class="stat">상태</div><div class="value" id="footState">-</div></div>
-      <div class="card" style="padding:12px"><div class="stat">온도계 센서</div><div class="value" id="footConn">확인중...</div></div>
-      <div class="card" style="padding:12px"><div class="stat">데이터</div><div class="value" id="footCount">-</div></div>
-    </div>
-    
-  </div>
+logger = logging.getLogger(__name__)
 
-  <script>
-    let chart;
-    let lastTemp = null;
 
-    async function fetchLatest() {
-      const r = await fetch('/api/latest');
-      if (!r.ok) return;
-      const d = await r.json();
-      if (!d || Object.keys(d).length === 0) return;
-      const vehEl = document.getElementById('veh');
-      if (vehEl) vehEl.textContent = d.vehicle_id ?? '-';
-      document.getElementById('deviceId').textContent = d.vehicle_id ?? '-';
-      const dtEl = document.getElementById('dt');
-      if (dtEl) dtEl.textContent = d.datetime ?? '-';
-      document.getElementById('lat').textContent = d.latitude?.toFixed(6) ?? '-';
-      document.getElementById('lon').textContent = d.longitude?.toFixed(6) ?? '-';
-      const spdEl = document.getElementById('spd');
-      if (spdEl) spdEl.textContent = (d.speed ?? 0).toFixed(1);
-      const hdgEl = document.getElementById('hdg');
-      if (hdgEl) hdgEl.textContent = (d.heading ?? 0).toFixed(0);
-      const currentTemp = (d.temperature != null) ? Number(d.temperature) : null;
-      lastTemp = currentTemp;
-      const t = (currentTemp != null) ? currentTemp.toFixed(1) : '--.-';
-      document.getElementById('tmpBig').textContent = `${t}°C`;
-      document.getElementById('footTemp').textContent = `${t}°C`;
-      // 위치 표시는 성공 시에만 갱신(조회중 문구는 표시하지 않음)
-      // 상태 배지 색상
-      const badge = document.getElementById('sts');
-      const stRaw = (d.status || 'unknown');
-      // 상태 한글 라벨 매핑
-      const stMap = {
-        'normal': { label: '정상', cls: 'b-normal' },
-        'warm': { label: '주의', cls: 'b-warm' },
-        'critical_hot': { label: '고온 위험', cls: 'b-critical_hot' },
-        'cold': { label: '저온 주의', cls: 'b-cold' },
-        'critical_cold': { label: '저온 위험', cls: 'b-critical_cold' },
-        'unknown': { label: '알수없음', cls: 'b-unknown' },
-      };
-      const stObj = stMap[stRaw] || stMap['unknown'];
-      // 색상 강조 복구
-      badge.textContent = stObj.label;
-      badge.className = `badge ${stObj.cls}`;
-      // 헤더 연결 상태 색상은 인터넷 상태 API에서만 관리(이곳에서 조정하지 않음)
-      // 카드/숫자/하단 상태 색상 강조 복구
-      const tempCard = document.getElementById('tempCard');
-      const dangerStates = new Set(['critical_hot','critical_cold']);
-      const warnStates = new Set(['warm','cold']);
-      tempCard.classList.remove('temp-danger','temp-warn');
-      if (dangerStates.has(stRaw)) tempCard.classList.add('temp-danger');
-      else if (warnStates.has(stRaw)) tempCard.classList.add('temp-warn');
-      document.getElementById('footState').textContent = stObj.label;
-      const footStateEl = document.getElementById('footState');
-      footStateEl.classList.remove('text-ok','text-warn','text-danger','text-blue');
-      if (stRaw === 'normal') footStateEl.classList.add('text-ok');
-      else if (stRaw === 'cold' || stRaw === 'critical_cold') footStateEl.classList.add('text-blue');
-      else if (stRaw === 'critical_hot') footStateEl.classList.add('text-danger');
-      else if (stRaw === 'warm') footStateEl.classList.add('text-warn');
-      const tmpBigEl = document.getElementById('tmpBig');
-      const footTempEl = document.getElementById('footTemp');
-      [tmpBigEl, footTempEl].forEach(el => {
-        if (!el) return;
-        el.classList.remove('text-ok','text-warn','text-danger','text-blue');
-        if (stRaw === 'normal') el.classList.add('text-ok');
-        else if (stRaw === 'cold' || stRaw === 'critical_cold') el.classList.add('text-blue');
-        else if (stRaw === 'critical_hot') el.classList.add('text-danger');
-        else if (stRaw === 'warm') el.classList.add('text-warn');
-      });
+class ServerSender:
+    """서버로 데이터를 전송하는 클래스"""
 
-      // 리버스 지오코딩: 위도/경도로 행정구역 표시
-      if (d.latitude && d.longitude) {
-        try {
-          const geo = await fetch(`/api/reverse-geocode?lat=${d.latitude}&lon=${d.longitude}`);
-          if (geo.ok) {
-            const g = await geo.json();
-            const display = g.display || '';
-            const noteEl = document.getElementById('locNote');
-            noteEl.innerHTML = `현재 위치: ${display || '-'}\n<span class="muted">업데이트: ${d.datetime ?? '-'}</span>`;
-          }
-        } catch {}
-      }
-    }
+    def __init__(self, db_path):
+        self.db_path = db_path  # 데이터베이스 경로만 저장
+        self.vehicle_id = VEHICLE_ID
+        self.send_interval = SEND_INTERVAL
+        self.batch_size = BATCH_SIZE
 
-    async function fetchSeries() {
-      const r = await fetch('/api/temperature-series');
-      if (!r.ok) return;
-      const arr = (await r.json()).filter(p => Number.isFinite(p.y));
-      const labels = arr.map(p => new Date(p.x * 1000));
-      const values = arr.map(p => p.y);
-      const emptyNoteEl = document.getElementById('emptyNote');
-      if (emptyNoteEl) emptyNoteEl.style.display = values.length ? 'none' : 'block';
+        # MQTT 설정 (config.py에서 가져옴)
+        self.mqtt_broker_host = MQTT_BROKER_HOST
+        self.mqtt_broker_port = MQTT_BROKER_PORT
+        self.mqtt_topic = MQTT_TOPIC
+        self.mqtt_client_id = MQTT_CLIENT_ID
+        self.mqtt_qos = MQTT_QOS
+        self.mqtt_retain = MQTT_RETAIN
 
-      if (!chart) {
-        const ctx = document.getElementById('tempChart').getContext('2d');
-        // 항상 보이는 임계선(2°C, 8°C)을 캔버스에 직접 그리는 플러그인
-        const thresholdLinesPlugin = {
-          id: 'thresholdLines',
-          afterDraw(chart, args, opts) {
-            const { ctx, chartArea, scales } = chart;
-            if (!chartArea || !scales?.y) return;
-            const { left, right, top, bottom } = chartArea;
-            const yScale = scales.y;
-            const lines = (opts && opts.lines) || [
-              { value: 2.0, color: '#60a5fa' },
-              { value: 8.0, color: '#ef4444' },
-            ];
-            ctx.save();
-            ctx.setLineDash([6,6]);
-            ctx.lineWidth = 1.2;
-            for (const ln of lines) {
-              const yPix = yScale.getPixelForValue(ln.value);
-              if (Number.isFinite(yPix) && yPix >= top && yPix <= bottom) {
-                ctx.strokeStyle = ln.color;
-                ctx.beginPath();
-                ctx.moveTo(left, yPix);
-                ctx.lineTo(right, yPix);
-                ctx.stroke();
-              }
+        self.mqtt_client = None
+        self._mqtt_connected_event = threading.Event()
+
+        self.running = False
+        self.last_send_time = None
+        self.send_thread = None
+
+        # 전송 통계
+        self.stats = {
+            'total_sent': 0,
+            'send_failures': 0,
+            'last_success': None
+        }
+
+        # 온도 상태 범위 설정 (config.py에서 가져옴)
+        self.temp_ranges = TEMP_RANGES
+
+    def start(self):
+        """서버 전송 시작"""
+        if self.running:
+            logger.warning("서버 전송이 이미 실행 중입니다")
+            return
+
+        self.running = True
+
+        self.send_thread = threading.Thread(target=self._send_loop, daemon=True)
+        self.send_thread.start()
+        logger.info(f"서버 전송 시작 (인터벌: {self.send_interval}초, MQTT 브로커: {self.mqtt_broker_host}:{self.mqtt_broker_port}, 토픽: {self.mqtt_topic})")
+
+    def stop(self):
+        """서버 전송 중지"""
+        if not self.running:
+            return
+
+        self.running = False
+
+        if self.send_thread:
+            self.send_thread.join(timeout=5)
+        logger.info("서버 전송 중지")
+
+
+    def _send_loop(self):
+        """전송 루프 (백그라운드 스레드)"""
+        while self.running:
+            try:
+                current_time = time.time()
+
+                # 전송 간격 확인
+                if (self.last_send_time is None or
+                    current_time - self.last_send_time >= self.send_interval):
+
+                    self._send_batch()
+                    self.last_send_time = current_time
+
+                # 다음 전송까지 남은 시간만큼 짧게 대기하여 초 단위 전송 보장
+                # 최소 10ms, 최대 200ms 간격으로 폴링하여 1초 주기를 정밀하게 유지
+                remaining = self.send_interval - (time.time() - (self.last_send_time or 0))
+                sleep_for = max(0.01, min(0.2, remaining))
+                time.sleep(sleep_for)
+
+            except Exception as e:
+                logger.error(f"전송 루프 오류: {e}")
+                time.sleep(1)  # 오류 발생 시 짧게 대기 후 재시도
+
+    def _send_batch(self):
+        """배치 데이터 전송"""
+        try:
+            # 전송할 데이터 조회
+            data_to_send = self._get_unsent_data()
+            if not data_to_send:
+                logger.debug("전송할 새 데이터가 없습니다")
+                return
+
+            logger.info(f"{len(data_to_send)}개의 데이터를 서버로 전송합니다 (MQTT)")
+
+            # 서버로 전송 (MQTT 전용)
+            success = self._send_to_mqtt(data_to_send)
+
+            if success:
+                # 성공 시 전송 완료 표시
+                self._mark_data_as_sent([item['id'] for item in data_to_send])
+                self.stats['total_sent'] += len(data_to_send)
+                self.stats['last_success'] = datetime.now()
+                logger.info(f"✅ {len(data_to_send)}개 데이터 전송 성공")
+            else:
+                self.stats['send_failures'] += 1
+                logger.error("❌ 데이터 전송 실패")
+
+        except Exception as e:
+            logger.error(f"배치 전송 오류: {e}")
+            self.stats['send_failures'] += 1
+
+    def _init_mqtt_client(self):
+        """MQTT 클라이언트 초기화"""
+        try:
+            import paho.mqtt.client as mqtt
+
+            self.mqtt_client = mqtt.Client(client_id=self.mqtt_client_id, clean_session=True)
+
+            def on_connect(client, userdata, flags, rc):
+                if rc == 0:
+                    logger.info(f"✅ MQTT 브로커 연결 성공: {self.mqtt_broker_host}:{self.mqtt_broker_port}")
+                    self._mqtt_connected_event.set()
+                else:
+                    logger.error(f"❌ MQTT 브로커 연결 실패: {rc}")
+
+            def on_disconnect(client, userdata, rc):
+                if rc != 0:
+                    logger.warning(f"MQTT 브로커 연결 끊김: {rc}")
+                self._mqtt_connected_event.clear()
+
+            self.mqtt_client.on_connect = on_connect
+            self.mqtt_client.on_disconnect = on_disconnect
+
+            # 동기 연결로 전환 (연결 보장)
+            self._mqtt_connected_event.clear()
+            self.mqtt_client.connect(self.mqtt_broker_host, self.mqtt_broker_port, 60)
+            self.mqtt_client.loop_start()
+            # on_connect 신호 대기
+            self._mqtt_connected_event.wait(timeout=5)
+
+        except Exception as e:
+            logger.error(f"MQTT 클라이언트 초기화 실패: {e}")
+            self.mqtt_client = None
+
+    def _send_to_mqtt(self, data):
+        """MQTT 브로커로 데이터 전송"""
+        try:
+            if self.mqtt_client is None:
+                self._init_mqtt_client()
+
+            # 연결 완료 대기 (최대 5초)
+            self._mqtt_connected_event.wait(timeout=5)
+
+            if self.mqtt_client is None:
+                return False
+
+            payload = {
+                'vehicle_id': self.vehicle_id,
+                'timestamp': datetime.now().isoformat(),
+                'data': data
             }
-            ctx.restore();
-          }
-        };
-        Chart.register(thresholdLinesPlugin);
-        // 경고 임계선 값(°C)
-        // 데이터가 없어도 임계선을 항상 표시하기 위해 labels가 비어있으면 더미 라벨 생성
-        const baseLabels = (labels.length >= 2) ? labels : [new Date(Date.now() - 2*60*1000), new Date()];
-        const THRESHOLDS = [
-          { label: '', value: 2.0, color: '#60a5fa' },
-          { label: '', value: 8.0, color: '#ef4444' },
-        ];
-        const ensureTwoPoints = (arr) => (arr.length >= 2 ? arr : [new Date(Date.now() - 2*60*1000), new Date()]);
-        const makeLine = (t) => ({
-          label: t.label,
-          data: baseLabels.map(() => t.value),
-          borderColor: t.color,
-          borderDash: [6, 6],
-          borderWidth: 1.2,
-          clip: false,
-          pointRadius: 0,
-          pointHitRadius: 0,
-          pointHoverRadius: 0,
-          fill: false,
-          stepped: false,
-          constantValue: t.value,
-        });
-        const currentLine = {
-          label: '현재 온도',
-          data: baseLabels.map(() => (lastTemp != null ? lastTemp : null)),
-          borderColor: '#22c55e',
-          borderDash: [2, 2],
-          borderWidth: 1.2,
-          clip: false,
-          pointRadius: 0,
-          pointHitRadius: 0,
-          pointHoverRadius: 0,
-          fill: false,
-          stepped: false,
-        };
-        chart = new Chart(ctx, {
-          type: 'line',
-          data: {
-            labels: baseLabels,
-            datasets: [
-              {
-                label: '',
-                data: (labels.length >= 2) ? values : baseLabels.map(() => null),
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                tension: 0.2,
-                pointRadius: 0,
-              },
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-              x: {
-                type: 'time',
-                time: { unit: 'minute', tooltipFormat: 'HH:mm:ss' },
-                ticks: { color: '#9aa4b2', font: { size: 14 } },
-                grid: { color: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.28)', lineWidth: 1 },
-                border: { color: 'rgba(255,255,255,0.28)' }
-              },
-              y: {
-                ticks: { color: '#9aa4b2', font: { size: 14 } },
-                grid: { color: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.28)', lineWidth: 1 },
-                border: { color: 'rgba(255,255,255,0.28)' }
-              }
-            },
-            plugins: { legend: { display: false }, thresholdLines: { lines: [ { value: 2.0, color: '#60a5fa' }, { value: 8.0, color: '#ef4444' } ] } }
-          }
-        });
-        // 초기 X축을 최근 2분으로 고정
-        const now = Date.now();
-        chart.options.scales.x.min = now - 2 * 60 * 1000;
-        chart.options.scales.x.max = now;
-        // Y축은 "현재 온도 중심 ±5.5°C"로 동적 설정 (총 범위 11°C)
-        const center0 = (lastTemp != null && Number.isFinite(lastTemp)) ? lastTemp : (values.length ? values[values.length-1] : 4.5);
-        chart.options.scales.y.min = center0 - 5.5;
-        chart.options.scales.y.max = center0 + 5.5;
-      } else {
-        // 데이터가 없을 때도 임계선이 사라지지 않도록 더미 라벨 유지
-        const now = Date.now();
-        const baseLabelsUpd = (labels.length >= 2) ? labels : [new Date(now - 2*60*1000), new Date()];
-        chart.data.labels = baseLabelsUpd;
-        chart.data.datasets[0].data = (labels.length >= 2) ? values : baseLabelsUpd.map(() => null);
-        // dataset[1]: 현재 온도 라인 업데이트
-        if (chart.data.datasets[1]) {
-          chart.data.datasets[1].data = baseLabelsUpd.map(() => (lastTemp != null ? lastTemp : null));
-        }
-        // 임계선 길이 보정
-        for (let i = 2; i < chart.data.datasets.length; i++) {
-          const ds = chart.data.datasets[i];
-          const v = (typeof ds.constantValue === 'number') ? ds.constantValue : (Number.isFinite(ds.data?.[0]) ? ds.data[0] : 2.0);
-          ds.data = baseLabelsUpd.map(() => v);
-        }
-        // X축 시간을 최근 2분으로 강제 고정
-        chart.options.scales.x.min = now - 2 * 60 * 1000;
-        chart.options.scales.x.max = now;
-        // Y축을 현재 온도 중심 ±5.5°C로 갱신 (총 범위 11°C)
-        const center = (lastTemp != null && Number.isFinite(lastTemp)) ? lastTemp : (values.length ? values[values.length-1] : 4.5);
-        chart.options.scales.y.min = center - 5.5;
-        chart.options.scales.y.max = center + 5.5;
-        chart.update('none');
-      }
-      const footCountElem = document.getElementById('footCount');
-      if (footCountElem) footCountElem.textContent = values.length.toString();
-    }
 
-    async function tick() {
-      fetchLatest();
-      fetchSeries();
-      // 인터넷 연결 상태 (상단 표시)
-      try {
-        const net = await fetch('/api/health/internet');
-        if (net.ok) {
-          const j = await net.json();
-          const el = document.getElementById('conn');
-          el.classList.remove('text-ok','text-warn','text-danger');
-          if (j.connected) { el.textContent = '연결됨'; el.classList.add('text-ok'); }
-          else { el.textContent = '오프라인'; el.classList.add('text-danger'); }
-        }
-      } catch {}
-      // 온도 센서 연결 상태(최근 데이터 기준, 하단 표시)
-      try {
-        const th = await fetch('/api/health/temperature');
-        if (th.ok) {
-          const j = await th.json();
-          const el = document.getElementById('footConn');
-          el.classList.remove('text-ok','text-warn','text-danger','text-blue');
-          if (j.connected) { el.textContent = '연결됨'; el.classList.add('text-ok'); }
-          else { el.textContent = '오프라인'; el.classList.add('text-danger'); }
-        }
-      } catch {}
-    }
+            json_payload = json.dumps(payload, default=str)
+            result = self.mqtt_client.publish(self.mqtt_topic, json_payload, qos=self.mqtt_qos, retain=self.mqtt_retain)
 
-    tick();
-    setInterval(tick, 1000);
-    // 헤더 현재 시간 갱신
-    setInterval(() => {
-      const d = new Date();
-      const h = d.getHours();
-      const ampm = h < 12 ? '오전' : '오후';
-      const hh = ((h + 11) % 12 + 1).toString().padStart(2,'0');
-      const mm = d.getMinutes().toString().padStart(2,'0');
-      const ss = d.getSeconds().toString().padStart(2,'0');
-      const y = d.getFullYear();
-      const mo = (d.getMonth()+1).toString().padStart(2,'0');
-      const da = d.getDate().toString().padStart(2,'0');
-      document.getElementById('nowText').textContent = `${y}.${mo}.${da}. ${ampm} ${hh}:${mm}:${ss}`;
-    }, 1000);
-  </script>
-</body>
-</html>
+            if result.rc == 0:
+                logger.info(f"MQTT 브로커에 {len(data)}개 데이터 전송 완료")
+                return True
+            else:
+                logger.error(f"MQTT 발행 실패: {result.rc}")
+                # paho 실패 시 mosquitto_pub 폴백 시도
+                try:
+                    import subprocess
+                    subprocess.run([
+                        'mosquitto_pub',
+                        '-h', self.mqtt_broker_host,
+                        '-p', str(self.mqtt_broker_port),
+                        '-t', self.mqtt_topic,
+                        '-m', json_payload,
+                        '-q', str(self.mqtt_qos)
+                    ], check=True)
+                    logger.info(f"mosquitto_pub 폴백으로 {len(data)}개 데이터 전송 완료")
+                    return True
+                except Exception as se:
+                    logger.error(f"mosquitto_pub 폴백 실패: {se}")
+                    return False
+
+        except Exception as e:
+            logger.error(f"MQTT 전송 실패: {e}")
+            return False
+
+    def _get_unsent_data(self):
+        """전송하지 않은 GPS+온도 데이터 조회 (중복 전송 방지)"""
+        try:
+            # 각 스레드에서 독립적인 데이터베이스 연결 생성
+            import sqlite3
+            from database import GPSDatabase
+
+            db = GPSDatabase(self.db_path)
+            db.connect()
+
+            # 전송하지 않은 GPS+온도 데이터만 조회
+            unsent_data = db.get_unsent_gps_temperature_data(limit=self.batch_size)
+
+            # 데이터를 서버 전송 형식으로 변환
+            formatted_data = []
+            for row in unsent_data:
+                formatted_data.append(self._format_gps_temperature_data_for_server(row))
+
+            db.close()
+            return formatted_data
+
+        except Exception as e:
+            logger.error(f"GPS+온도 데이터 조회 오류: {e}")
+            return []
+
+    def _format_gps_temperature_data_for_server(self, row):
+        """GPS+온도 데이터베이스 행을 서버 형식으로 변환"""
+        # row: (id, vehicle_id, timestamp, datetime, latitude, longitude, altitude, speed, heading, temperature, status, sent, sent_at, created_at)
+
+        # 온도 상태 재확인 (데이터베이스에 저장된 상태 우선 사용)
+        temperature = row[9]   # temperature 필드 (인덱스 9)
+        db_status = row[10]    # status 필드 (인덱스 10)
+
+        # 데이터베이스에 상태가 없거나 unknown인 경우에만 재계산
+        if not db_status or db_status == 'unknown':
+            temp_status = self._get_temperature_status(temperature)
+        else:
+            temp_status = db_status
+
+        return {
+            'id': row[0],          # id 필드 (인덱스 0) - 전송 완료 표시에 필요
+            'vehicle_id': row[1],  # vehicle_id 필드 (인덱스 1)
+            'timestamp': datetime.fromtimestamp(row[2]).isoformat(),  # timestamp 필드 (인덱스 2)
+            'latitude': row[4],    # latitude 필드 (인덱스 4)
+            'longitude': row[5],   # longitude 필드 (인덱스 5)
+            'temperature': temperature,
+            'status': temp_status
+        }
+
+    def _get_temperature_status(self, temperature):
+        """온도값에 따른 상태 판단"""
+        if temperature is None:
+            return 'unknown'
+
+        for status, (min_temp, max_temp) in self.temp_ranges.items():
+            if min_temp <= temperature < max_temp:
+                return status
+        return 'normal'
+
+    # MySQL/API 전송 경로는 제거됨 (MQTT 전용)
 
 
+    def _mark_data_as_sent(self, data_ids):
+        """전송 완료된 GPS+온도 데이터 표시 (중복 전송 방지)"""
+        try:
+            # 각 스레드에서 독립적인 데이터베이스 연결 생성
+            import sqlite3
+            from database import GPSDatabase
+
+            db = GPSDatabase(self.db_path)
+            db.connect()
+            db.mark_gps_temperature_data_as_sent(data_ids)
+            db.close()
+        except Exception as e:
+            logger.error(f"GPS+온도 데이터 전송 완료 표시 실패: {e}")
+
+    def get_stats(self):
+        """전송 통계 반환"""
+        return {
+            **self.stats,
+            'is_running': self.running,
+            'next_send_in': max(0, self.send_interval - (time.time() - (self.last_send_time or 0)))
+        }
+
+    def force_send_now(self):
+        """즉시 데이터 전송 (수동 실행용)"""
+        logger.info("수동 데이터 전송 시작")
+        self._send_batch()
+
+    # 연결 테스트(외부 서버) 기능 제거됨
+
+
+def test_server_connection():
+    """서버 연결 테스트 함수"""
+    print("🔗 서버 연결 테스트 시작...")
+
+    # 임시 데이터베이스 연결 (테스트용)
+    class MockDB:
+        def get_latest_data(self, limit): return []
+
+    mock_db = MockDB()
+    sender = ServerSender(mock_db)
+
+    success = sender.test_connection()
+
+    if success:
+        print("✅ 서버 연결 성공!")
+        print(f"차량 ID: {sender.vehicle_id}")
+        print(f"전송 설정: {sender.send_interval}초 간격, 배치 크기: {sender.batch_size}")
+    else:
+        print("❌ 서버 연결 실패!")
+        print("서버 설정을 확인해주세요.")
+
+    return success
+
+
+if __name__ == "__main__":
+    print("ServerSender는 gps_tracker에 의해 구동됩니다.")
