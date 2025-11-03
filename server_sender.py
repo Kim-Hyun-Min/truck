@@ -13,15 +13,14 @@ from config import (
     VEHICLE_ID,
     SEND_INTERVAL,
     BATCH_SIZE,
+    MQTT_BROKER_HOST,
+    MQTT_BROKER_PORT,
+    MQTT_TOPIC,
     MQTT_CLIENT_ID,
     MQTT_QOS,
     MQTT_RETAIN,
+    TEMP_RANGES,
 )
-
-# MQTT 브로커/토픽 고정 설정 (요청사항 반영)
-BROKER = "192.168.0.102"  # 로컬 PC IP
-PORT   = 1883
-TOPIC  = "truck/gps_temp"
 
 logger = logging.getLogger(__name__)
 
@@ -35,10 +34,10 @@ class ServerSender:
         self.send_interval = SEND_INTERVAL
         self.batch_size = BATCH_SIZE
 
-        # MQTT 설정 (요청값으로 고정)
-        self.mqtt_broker_host = BROKER
-        self.mqtt_broker_port = PORT
-        self.mqtt_topic = TOPIC
+        # MQTT 설정 (config.py에서 가져옴)
+        self.mqtt_broker_host = MQTT_BROKER_HOST
+        self.mqtt_broker_port = MQTT_BROKER_PORT
+        self.mqtt_topic = MQTT_TOPIC
         self.mqtt_client_id = MQTT_CLIENT_ID
         self.mqtt_qos = MQTT_QOS
         self.mqtt_retain = MQTT_RETAIN
@@ -57,14 +56,8 @@ class ServerSender:
             'last_success': None
         }
 
-        # 온도 상태 범위 설정
-        self.temp_ranges = {
-            'critical_cold': (-float('inf'), 2.0),
-            'cold': (2.0, 2.5),
-            'normal': (2.5, 7.5),
-            'warm': (7.5, 8.0),
-            'critical_hot': (8.0, float('inf'))
-        }
+        # 온도 상태 범위 설정 (config.py에서 가져옴)
+        self.temp_ranges = TEMP_RANGES
 
     def start(self):
         """서버 전송 시작"""
@@ -76,7 +69,7 @@ class ServerSender:
 
         self.send_thread = threading.Thread(target=self._send_loop, daemon=True)
         self.send_thread.start()
-        logger.info(f"서버 전송 시작 (인터벌: {self.send_interval}초, MQTT 브로커: {self.mqtt_broker_host}:{self.mqtt_broker_port})")
+        logger.info(f"서버 전송 시작 (인터벌: {self.send_interval}초, MQTT 브로커: {self.mqtt_broker_host}:{self.mqtt_broker_port}, 토픽: {self.mqtt_topic})")
 
     def stop(self):
         """서버 전송 중지"""
@@ -266,9 +259,6 @@ class ServerSender:
             'timestamp': datetime.fromtimestamp(row[2]).isoformat(),  # timestamp 필드 (인덱스 2)
             'latitude': row[4],    # latitude 필드 (인덱스 4)
             'longitude': row[5],   # longitude 필드 (인덱스 5)
-            'altitude': row[6],    # altitude 필드 (인덱스 6)
-            'speed': row[7],       # speed 필드 (인덱스 7)
-            'heading': row[8],     # heading 필드 (인덱스 8)
             'temperature': temperature,
             'status': temp_status
         }

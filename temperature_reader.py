@@ -8,6 +8,7 @@ import logging
 import gpiozero
 import time
 import sys
+from config import TEMP_RANGES
 
 logger = logging.getLogger(__name__)
 
@@ -25,14 +26,8 @@ class TemperatureReader:
         self.sensor_type = sensor_type
         self.sensor = None
 
-        # 백신 운송 온도 상태 범위 설정
-        self.temp_ranges = {
-            'critical_cold': (-float('inf'), 2.0),
-            'cold': (2.0, 2.5),
-            'normal': (2.5, 7.5),
-            'warm': (7.5, 8.0),
-            'critical_hot': (8.0, float('inf'))
-        }
+        # 백신 운송 온도 상태 범위 설정 (config.py에서 가져옴)
+        self.temp_ranges = TEMP_RANGES
 
         self.connect()
 

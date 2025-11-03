@@ -2,7 +2,7 @@ import sqlite3
 import logging
 import time
 from datetime import datetime
-from config import DB_PATH
+from config import DB_PATH, VEHICLE_ID
 
 logger = logging.getLogger(__name__)
 
@@ -28,10 +28,11 @@ class GPSDatabase:
         """GPS 데이터 저장을 위한 테이블 생성 (서버 데이터 구조에 맞춤)"""
         try:
             # GPS + 온도 데이터를 저장하는 테이블 생성 (사용자 서버 구조에 맞춤)
-            self.cursor.execute("""
+            # SQL의 DEFAULT는 리터럴만 허용하므로 f-string으로 처리 (VEHICLE_ID는 config에서 관리됨)
+            self.cursor.execute(f"""
                 CREATE TABLE IF NOT EXISTS gps_temperature_data (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    vehicle_id TEXT NOT NULL DEFAULT 'V001',
+                    vehicle_id TEXT NOT NULL DEFAULT '{VEHICLE_ID}',
                     timestamp REAL NOT NULL,
                     datetime TEXT NOT NULL,
                     latitude REAL,
@@ -66,7 +67,7 @@ class GPSDatabase:
     
     def insert_gps_temperature_data(self, latitude=None, longitude=None, altitude=None,
                                    speed=None, heading=None, temperature=None,
-                                   vehicle_id='V001', status='normal'):
+                                   vehicle_id=VEHICLE_ID, status='normal'):
         """GPS + 온도 데이터 삽입 (사용자 서버 구조에 맞춤)"""
         timestamp = datetime.now().timestamp()
         datetime_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")

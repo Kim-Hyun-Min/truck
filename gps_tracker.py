@@ -13,7 +13,7 @@ from collections import deque
 from datetime import datetime
 from database import GPSDatabase
 from server_sender import ServerSender
-from config import DB_PATH, SAMPLE_RATE, INTERVAL, LOG_LEVEL, LOG_FILE, VEHICLE_ID
+from config import DB_PATH, SAMPLE_RATE, INTERVAL, LOG_LEVEL, LOG_FILE, VEHICLE_ID, RETENTION_SECONDS, TEMP_RANGES
 
 # 로깅 설정
 logging.basicConfig(
@@ -46,14 +46,8 @@ class GPSTracker:
         self.gps_reader_thread = None
         self.temp_reader_thread = None
 
-        # 온도 상태 범위 설정
-        self.temp_ranges = {
-            'critical_cold': (-float('inf'), 2.0),
-            'cold': (2.0, 2.5),
-            'normal': (2.5, 7.5),
-            'warm': (7.5, 8.0),
-            'critical_hot': (8.0, float('inf'))
-        }
+        # 온도 상태 범위 설정 (config.py에서 가져옴)
+        self.temp_ranges = TEMP_RANGES
 
     def get_temperature_status(self, temperature):
         """온도값에 따른 상태 판단"""
@@ -225,10 +219,10 @@ class GPSTracker:
                 # GPS 연결 상태 주기적 확인 (10초마다)
                 if sample_count % 100 == 0:  # 10초마다 체크 (0.1초 * 100 = 10초)
                     self.check_gps_connection()
-                # 30초마다(0.1초*300) 5분 초과 데이터 자동 삭제
+                # 30초마다(0.1초*300) 보관기간 초과 데이터 자동 삭제
                 if sample_count % 300 == 0 and self.db:
                     try:
-                        self.db.purge_older_than_seconds(300)
+                        self.db.purge_older_than_seconds(RETENTION_SECONDS)
                     except Exception as _:
                         pass
 

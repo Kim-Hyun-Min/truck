@@ -8,6 +8,7 @@ import logging
 import random
 import math
 import time
+from config import TEMP_RANGES
 
 logger = logging.getLogger(__name__)
 
@@ -27,14 +28,8 @@ class TemperatureSimulator:
         self.current_temp = self.target_temp + random.uniform(-0.5, 0.5)  # 초기 온도 (목표 주변)
         self.update_count = 0
 
-        # 온도 상태 범위 설정
-        self.temp_ranges = {
-            'critical_cold': (-float('inf'), 2.0),
-            'cold': (2.0, 2.5),
-            'normal': (2.5, 7.5),
-            'warm': (7.5, 8.0),
-            'critical_hot': (8.0, float('inf'))
-        }
+        # 온도 상태 범위 설정 (config.py에서 가져옴)
+        self.temp_ranges = TEMP_RANGES
 
         logger.info(f"백신 온도 시뮬레이터 초기화 완료 (목표: {target_temp}°C, 범위: 2°C~8°C)")
     

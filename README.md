@@ -527,7 +527,6 @@ def read(self):
     
     return gps_data
 ```
-
 ---
 
 ### 4️⃣ `gps_simulator.py` - GPS 시뮬레이터

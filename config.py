@@ -14,11 +14,23 @@ GPS_BAUDRATE = 9600        # NK-GPS-U 기본 통신 속도 (9600 또는 38400)
 SAMPLE_RATE = 10  # 초당 샘플 수
 INTERVAL = 1.0 / SAMPLE_RATE  # 샘플 간격 (0.1초)
 
+# 보관(정리) 설정
+RETENTION_SECONDS = 1200  # SQLite 저장 데이터 보관 기간(초) = 20분
+
 # 온도 센서 설정
 TEMP_SENSOR_TYPE = "MCP9600"  # MCP9600, DS18B20, DHT22, ANALOG 등
 # MCP9600: I2C 열전대 증폭기 (냉장고 온도 측정에 적합, 넓은 온도 범위)
 # DS18B20: 1-Wire 디지털 온도 센서 (가장 흔함, 방수 가능)
 # DHT22: 온습도 센서
+
+# 온도 상태 범위 설정 (백신 운송 기준)
+TEMP_RANGES = {
+    'critical_cold': (-float('inf'), 2.0),
+    'cold': (2.0, 2.5),
+    'normal': (2.5, 7.5),
+    'warm': (7.5, 8.0),
+    'critical_hot': (8.0, float('inf'))
+}
 
 # 서버 전송 설정 (MySQL)
 SERVER_HOST = "192.168.0.3"  # 서버 호스트
@@ -33,9 +45,9 @@ SERVER_API_KEY = "your-api-key"  # 실제 API 키로 변경
 
 
 # MQTT 브로커 설정
-MQTT_BROKER_HOST = "192.168.0.102"  # MQTT 브로커 IP (예: Windows PC)
+MQTT_BROKER_HOST = "106.254.226.206"  # MQTT 브로커 IP (예: Windows PC)
 MQTT_BROKER_PORT = 1883
-MQTT_TOPIC = "truck/gps/data"
+MQTT_TOPIC = "truck/gps_temp"
 MQTT_CLIENT_ID = "truck_gps_client"
 MQTT_QOS = 1
 MQTT_RETAIN = False
