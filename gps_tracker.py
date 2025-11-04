@@ -267,17 +267,21 @@ class GPSTracker:
                     # 초당 정확히 10개: 목표 달성, 0.1초당 한번씩 저장
                     should_save = True
                 
-                if should_save and gps_data:
+                # GPS 또는 온도 데이터 중 하나라도 있으면 저장 (독립적으로 동작)
+                has_gps = gps_data and gps_data.get('latitude') and gps_data.get('longitude')
+                has_temp = temperature is not None
+                
+                if should_save and (has_gps or has_temp):
                     # 온도 상태 판단
                     temp_status = self.get_temperature_status(temperature) if temperature is not None else 'unknown'
 
-                    # GPS + 온도 데이터 저장 (사용자 서버 구조에 맞춤)
+                    # GPS + 온도 데이터 저장 (GPS 또는 온도 중 하나만 있어도 저장)
                     record_id = self.db.insert_gps_temperature_data(
-                        latitude=gps_data['latitude'],
-                        longitude=gps_data['longitude'],
-                        altitude=gps_data.get('altitude'),
-                        speed=gps_data.get('speed'),
-                        heading=gps_data.get('heading'),
+                        latitude=gps_data['latitude'] if has_gps else None,
+                        longitude=gps_data['longitude'] if has_gps else None,
+                        altitude=gps_data.get('altitude') if has_gps else None,
+                        speed=gps_data.get('speed') if has_gps else None,
+                        heading=gps_data.get('heading') if has_gps else None,
                         temperature=temperature,
                         vehicle_id=VEHICLE_ID,
                         status=temp_status
@@ -290,13 +294,11 @@ class GPSTracker:
                         elapsed = time.time() - start_time
                         save_rate = sample_count / elapsed
                         temp_str = f"{temperature:.1f}°C" if temperature is not None else "N/A"
+                        gps_str = f"위도: {gps_data['latitude']:.6f}, 경도: {gps_data['longitude']:.6f}, 속도: {gps_data.get('speed', 0):.1f}km/h, 위성: {gps_data.get('satellites', 0)}개" if has_gps else "GPS: 없음"
                         logger.info(
                             f"샘플 #{sample_count} | "
                             f"GPS율: {gps_rate}/초, 온도율: {temp_rate}/초 | "
-                            f"위도: {gps_data['latitude']:.6f}, "
-                            f"경도: {gps_data['longitude']:.6f}, "
-                            f"속도: {gps_data.get('speed', 0):.1f}km/h, "
-                            f"위성: {gps_data.get('satellites', 0)}개, "
+                            f"{gps_str} | "
                             f"온도: {temp_str} | "
                             f"저장율: {save_rate:.2f}/초"
                         )
